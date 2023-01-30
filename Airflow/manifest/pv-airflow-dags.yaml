@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-airflow-dags
+  namespace: hcm-datatransfer
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: azurefile-csi
+  csi:
+    driver: file.csi.azure.com
+    readOnly: false
+    volumeHandle: airflow-dags-0001  # make sure this volumeid is unique in the cluster
+    volumeAttributes:
+      resourceGroup: hcm_new_generation_reporting_dev  # optional, only set this when storage account is not in the same resource group as agent node
+      shareName: airflow-dags
+    nodeStageSecretRef:
+      name: storage-secret-hcmnewgenreportingdev
+      namespace: hcm-datatransfer
+  mountOptions:
+    - dir_mode=0777
+    - file_mode=0777
+    - uid=0
+    - gid=0
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    - nobrl

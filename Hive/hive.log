@@ -1,0 +1,1043 @@
+
+    --
+    -- Name: TYPE_FIELDS_TYPE_NAME_fkey; Type: FK CONSTRAINT; Schema: public; Owner: hiveuser
+    --
+
+    ALTER TABLE ONLY "TYPE_FIELDS"
+        ADD CONSTRAINT "TYPE_FIELDS_TYPE_NAME_fkey" FOREIGN KEY ("TYPE_NAME") REFERENCES "TYPES"("TYPES_ID") DEFERRABLE;
+
+    --
+    -- Name: TAB_COL_STATS_fkey; Type: FK CONSTRAINT; Schema: public; Owner: hiveuser
+    --
+    ALTER TABLE ONLY "TAB_COL_STATS" ADD CONSTRAINT "TAB_COL_STATS_fkey" FOREIGN KEY("TBL_ID") REFERENCES "TBLS"("TBL_ID") DEFERRABLE;
+
+
+    --
+    -- Name: PART_COL_STATS_fkey; Type: FK CONSTRAINT; Schema: public; Owner: hiveuser
+    --
+    ALTER TABLE ONLY "PART_COL_STATS" ADD CONSTRAINT "PART_COL_STATS_fkey" FOREIGN KEY("PART_ID") REFERENCES "PARTITIONS"("PART_ID") DEFERRABLE;
+
+
+    ALTER TABLE ONLY "VERSION" ADD CONSTRAINT "VERSION_pkey" PRIMARY KEY ("VER_ID");
+
+    -- Name: FUNCS_FK1; Type: FK CONSTRAINT; Schema: public; Owner: hiveuser
+    ALTER TABLE ONLY "FUNCS"
+        ADD CONSTRAINT "FUNCS_FK1" FOREIGN KEY ("DB_ID") REFERENCES "DBS" ("DB_ID") DEFERRABLE;
+
+    -- Name: FUNC_RU_FK1; Type: FK CONSTRAINT; Schema: public; Owner: hiveuser
+    ALTER TABLE ONLY "FUNC_RU"
+        ADD CONSTRAINT "FUNC_RU_FK1" FOREIGN KEY ("FUNC_ID") REFERENCES "FUNCS" ("FUNC_ID") DEFERRABLE;
+
+    --
+    -- Name: public; Type: ACL; Schema: -; Owner: hiveuser
+    --
+
+    REVOKE ALL ON SCHEMA public FROM PUBLIC;
+    GRANT ALL ON SCHEMA public TO PUBLIC;
+
+    --
+    -- PostgreSQL database dump complete
+    --
+
+    ------------------------------
+    -- Transaction and lock tables
+    ------------------------------
+    \i hive-txn-schema-2.3.0.postgres.sql;
+
+    -- -----------------------------------------------------------------
+    -- Record schema version. Should be the last step in the init script
+    -- -----------------------------------------------------------------
+    INSERT INTO "VERSION" ("VER_ID", "SCHEMA_VERSION", "VERSION_COMMENT") VALUES (1, '2.3.0', 'Hive release version 2.3.0');
+
+  01-hive-txn-schema-2.3.0.postgres.sql: |-
+    -- Licensed to the Apache Software Foundation (ASF) under one or more
+    -- contributor license agreements.  See the NOTICE file distributed with
+    -- this work for additional information regarding copyright ownership.
+    -- The ASF licenses this file to You under the Apache License, Version 2.0
+    -- (the "License"); you may not use this file except in compliance with
+    -- the License.  You may obtain a copy of the License at
+    --
+    --     http://www.apache.org/licenses/LICENSE-2.0
+    --
+    -- Unless required by applicable law or agreed to in writing, software
+    -- distributed under the License is distributed on an "AS IS" BASIS,
+    -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    -- See the License for the specific language governing permissions and
+    -- limitations under the License.
+
+    --
+    -- Tables for transaction management
+    --
+
+    CREATE TABLE TXNS (
+      TXN_ID bigint PRIMARY KEY,
+      TXN_STATE char(1) NOT NULL,
+      TXN_STARTED bigint NOT NULL,
+      TXN_LAST_HEARTBEAT bigint NOT NULL,
+      TXN_USER varchar(128) NOT NULL,
+      TXN_HOST varchar(128) NOT NULL,
+      TXN_AGENT_INFO varchar(128),
+      TXN_META_INFO varchar(128),
+      TXN_HEARTBEAT_COUNT integer
+    );
+
+    CREATE TABLE TXN_COMPONENTS (
+      TC_TXNID bigint REFERENCES TXNS (TXN_ID),
+      TC_DATABASE varchar(128) NOT NULL,
+      TC_TABLE varchar(128),
+      TC_PARTITION varchar(767) DEFAULT NULL,
+      TC_OPERATION_TYPE char(1) NOT NULL
+    );
+
+    CREATE INDEX TC_TXNID_INDEX ON TXN_COMPONENTS USING hash (TC_TXNID);
+
+    CREATE TABLE COMPLETED_TXN_COMPONENTS (
+      CTC_TXNID bigint,
+      CTC_DATABASE varchar(128) NOT NULL,
+      CTC_TABLE varchar(256),
+      CTC_PARTITION varchar(767)
+    );
+
+    CREATE TABLE NEXT_TXN_ID (
+      NTXN_NEXT bigint NOT NULL
+    );
+    INSERT INTO NEXT_TXN_ID VALUES(1);
+
+    CREATE TABLE HIVE_LOCKS (
+      HL_LOCK_EXT_ID bigint NOT NULL,
+      HL_LOCK_INT_ID bigint NOT NULL,
+      HL_TXNID bigint,
+      HL_DB varchar(128) NOT NULL,
+      HL_TABLE varchar(128),
+      HL_PARTITION varchar(767) DEFAULT NULL,
+      HL_LOCK_STATE char(1) NOT NULL,
+      HL_LOCK_TYPE char(1) NOT NULL,
+      HL_LAST_HEARTBEAT bigint NOT NULL,
+      HL_ACQUIRED_AT bigint,
+      HL_USER varchar(128) NOT NULL,
+      HL_HOST varchar(128) NOT NULL,
+      HL_HEARTBEAT_COUNT integer,
+      HL_AGENT_INFO varchar(128),
+      HL_BLOCKEDBY_EXT_ID bigint,
+      HL_BLOCKEDBY_INT_ID bigint,
+      PRIMARY KEY(HL_LOCK_EXT_ID, HL_LOCK_INT_ID)
+    );
+
+    CREATE INDEX HL_TXNID_INDEX ON HIVE_LOCKS USING hash (HL_TXNID);
+
+    CREATE TABLE NEXT_LOCK_ID (
+      NL_NEXT bigint NOT NULL
+    );
+    INSERT INTO NEXT_LOCK_ID VALUES(1);
+
+    CREATE TABLE COMPACTION_QUEUE (
+      CQ_ID bigint PRIMARY KEY,
+      CQ_DATABASE varchar(128) NOT NULL,
+      CQ_TABLE varchar(128) NOT NULL,
+      CQ_PARTITION varchar(767),
+      CQ_STATE char(1) NOT NULL,
+      CQ_TYPE char(1) NOT NULL,
+      CQ_TBLPROPERTIES varchar(2048),
+      CQ_WORKER_ID varchar(128),
+      CQ_START bigint,
+      CQ_RUN_AS varchar(128),
+      CQ_HIGHEST_TXN_ID bigint,
+      CQ_META_INFO bytea,
+      CQ_HADOOP_JOB_ID varchar(32)
+    );
+
+    CREATE TABLE NEXT_COMPACTION_QUEUE_ID (
+      NCQ_NEXT bigint NOT NULL
+    );
+    INSERT INTO NEXT_COMPACTION_QUEUE_ID VALUES(1);
+
+    CREATE TABLE COMPLETED_COMPACTIONS (
+      CC_ID bigint PRIMARY KEY,
+      CC_DATABASE varchar(128) NOT NULL,
+      CC_TABLE varchar(128) NOT NULL,
+      CC_PARTITION varchar(767),
+      CC_STATE char(1) NOT NULL,
+      CC_TYPE char(1) NOT NULL,
+      CC_TBLPROPERTIES varchar(2048),
+      CC_WORKER_ID varchar(128),
+      CC_START bigint,
+      CC_END bigint,
+      CC_RUN_AS varchar(128),
+      CC_HIGHEST_TXN_ID bigint,
+      CC_META_INFO bytea,
+      CC_HADOOP_JOB_ID varchar(32)
+    );
+
+    CREATE TABLE AUX_TABLE (
+      MT_KEY1 varchar(128) NOT NULL,
+      MT_KEY2 bigint NOT NULL,
+      MT_COMMENT varchar(255),
+      PRIMARY KEY(MT_KEY1, MT_KEY2)
+    );
+
+    CREATE TABLE WRITE_SET (
+      WS_DATABASE varchar(128) NOT NULL,
+      WS_TABLE varchar(128) NOT NULL,
+      WS_PARTITION varchar(767),
+      WS_TXNID bigint NOT NULL,
+      WS_COMMIT_ID bigint NOT NULL,
+      WS_OPERATION_TYPE char(1) NOT NULL
+    );
+---
+# Source: hive/templates/hive-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive
+  labels:
+    app.kubernetes.io/name: hive
+    helm.sh/chart: hive-0.1.6
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.3.6"
+    app.kubernetes.io/part-of: hive
+data:
+  startup.sh: |-
+    #!/bin/bash
+
+    #: ${HADOOP_PREFIX:=/usr/local/hadoop}
+
+    #. $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh
+
+    # Directory to find config artifacts
+    #CONFIG_DIR="/tmp/hadoop-config"
+
+    set -x
+
+    # Copy config files from volume mount
+    #for f in slaves core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml; do
+    #    if [[ -e ${CONFIG_DIR}/$f ]]; then
+    #    cp ${CONFIG_DIR}/$f $HADOOP_HOME/etc/hadoop/$f
+    #    else
+    #    echo "ERROR: Could not find $f in $CONFIG_DIR"
+    #    exit 1
+    #    fi
+
+    # Note. This script set hive paths in hdfs with user hive and ensures hiveServer is runAsUser hive
+
+    HADOOP_USER_NAME=hdfs hdfs dfs -mkdir /tmp
+    HADOOP_USER_NAME=hdfs hdfs dfs -mkdir -p  /user/hive/warehouse
+    HADOOP_USER_NAME=hdfs hdfs dfs -chmod 777 /tmp
+    HADOOP_USER_NAME=hdfs hdfs dfs -chmod g+w /tmp
+    HADOOP_USER_NAME=hdfs hdfs dfs -chmod g+w /user/hive/warehouse
+    HADOOP_USER_NAME=hdfs hdfs dfs -chown hive:hive /user/hive/warehouse
+
+
+    #if id -u hive ; then
+    #    echo "hive user exists";
+    #else
+    #    echo "Creating hive user";
+    #    groupadd -g 500 -r hive && \
+    #    useradd --comment "Hive user" -u 500 --shell /bin/bash -M -r -g hive hive
+    #fi
+
+    #if [[ whoami != hive ]]
+    #then
+    #    echo "Switching to hive user";
+    #    su hive -c "cd $HIVE_HOME/bin; ./hiveserver2 --hiveconf hive.server2.enable.doAs=false"
+    #else
+        cd $HIVE_HOME/bin; ./hiveserver2 --hiveconf hive.server2.enable.doAs=false --hiveconf hive.root.logger=INFO,console
+    #fi
+  hive-site.xml: |
+    <?xml version="1.0"?>
+    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+    <configuration>
+        <property>
+        <name>hive.metastore.uris</name>
+        <value>thrift://hive-metastore:9083</value>
+        </property>
+    </configuration>
+---
+# Source: hive/charts/hdfs/templates/hdfs-dn-svc-headless.yaml
+# A headless service to create DNS records
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-hdfs-datanode
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: datanode
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  ports:
+  - name: webhdfs
+    port: 50075
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: datanode
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/charts/hdfs/templates/hdfs-nn-exporter-service.yml
+kind: Service
+apiVersion: v1
+metadata:
+  name: hive-hdfs-namenode-exporter
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  selector:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hive
+  ports:
+  - port: 5556
+    name: metrics
+    targetPort: 5556
+---
+# Source: hive/charts/hdfs/templates/hdfs-nn-svc-headless.yaml
+# A headless service to create DNS records
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-hdfs-namenode
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  ports:
+  - name: dfs
+    port: 8020
+    protocol: TCP
+  - name: webhdfs
+    port: 50070
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/charts/hdfs/templates/hdfs-nn-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-hdfs
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  ports:
+  - name: dfs
+    port: 8020
+    protocol: TCP
+  - name: webhdfs
+    port: 50070
+  selector:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/charts/hdfs/templates/httpfs-svc.yaml
+# A headless service to create DNS records
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-hdfs-httpfs
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: httpfs
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  ports:
+  - name: httpfs
+    port: 14000
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: httpfs
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/charts/metastore/charts/postgresql/templates/svc-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-postgresql-headless
+  labels:
+    app.kubernetes.io/name: postgresql
+    helm.sh/chart: postgresql-10.2.8
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: Helm
+    # Use this annotation in addition to the actual publishNotReadyAddresses
+    # field below because the annotation will stop being respected soon but the
+    # field is broken in some versions of Kubernetes:
+    # https://github.com/kubernetes/kubernetes/issues/58662
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+  namespace: service-monitoring
+spec:
+  type: ClusterIP
+  clusterIP: None
+  # We want all pods in the StatefulSet to have their addresses published for
+  # the sake of the other Postgresql pods even before they're ready, since they
+  # have to be able to talk to each other in order to become ready.
+  publishNotReadyAddresses: true
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+  selector:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/charts/metastore/charts/postgresql/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-postgresql
+  labels:
+    app.kubernetes.io/name: postgresql
+    helm.sh/chart: postgresql-10.2.8
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+  namespace: service-monitoring
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+  selector:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/instance: hive
+    role: primary
+---
+# Source: hive/charts/metastore/templates/svc.yaml
+# A headless service to create DNS records
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-metastore
+  labels:
+    app.kubernetes.io/name: metastore
+    app.kubernetes.io/component: metastore
+    helm.sh/chart: metastore-0.1.3
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.3.6"
+    app.kubernetes.io/part-of: metastore
+spec:
+  ports:
+  - name: thrift
+    port: 9083
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: metastore
+    app.kubernetes.io/component: metastore
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/templates/server-svc.yaml
+# A headless service to create DNS records
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-server
+  labels:
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/component: server
+    helm.sh/chart: hive-0.1.6
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.3.6"
+    app.kubernetes.io/part-of: hive
+spec:
+  ports:
+  - name: thrift
+    port: 10000
+    protocol: TCP
+  - name: ui
+    port: 10002
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: hive
+---
+# Source: hive/charts/hdfs/templates/httpfs-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-hdfs-httpfs
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: httpfs
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/component: httpfs
+      app.kubernetes.io/instance: "hive"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/component: httpfs
+        app.kubernetes.io/instance: "hive"
+    spec:
+      containers:
+      - name: httpfs
+        image: "gradiant/hdfs:2.7.7"
+        imagePullPolicy: "IfNotPresent"
+        env:
+          - name: HTTPFS_HTTP_PORT
+            value: "14000"
+          - name: HTTPFS_ADMIN_PORT
+            value: "14001"
+          - name: CATALINA_OPTS
+            value: -Dhttpfs.admin.hostname=0.0.0.0
+        command:
+        - "/opt/hadoop/sbin/httpfs.sh"
+        - "run"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2048Mi
+          requests:
+            cpu: 10m
+            memory: 256Mi
+        #livenessProbe:
+        #  httpGet:
+        #    path: /
+        #    port: 50070
+        #  initialDelaySeconds: 10
+        #  timeoutSeconds: 2
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /opt/hadoop/etc/hadoop
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hive-hdfs-hadoop
+---
+# Source: hive/charts/hdfs/templates/hdfs-dn-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-hdfs-datanode
+  annotations:
+    checksum/config: 07c1e6c99cd717bdb2faadda085e1da47f2c43df771b1ab3dc601ca5fe8f8677
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: datanode
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/component: datanode
+      app.kubernetes.io/instance: "hive"
+  serviceName: hive-hdfs-datanode
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/component: datanode
+        app.kubernetes.io/instance: "hive"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 5
+            podAffinityTerm:
+              topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: hdfs
+                  app.kubernetes.io/component: datanode
+                  helm.sh/chart: hdfs-0.1.10
+                  app.kubernetes.io/managed-by: "Helm"
+                  app.kubernetes.io/instance: "hive"
+                  app.kubernetes.io/version: "2.7.7"
+                  app.kubernetes.io/part-of: hdfs
+      securityContext:
+        fsGroup: 114
+      initContainers:
+      - name: "chown"
+        image: "gradiant/hdfs:2.7.7"
+        imagePullPolicy: "IfNotPresent"
+        command:
+        - /bin/bash
+        - -c
+        - chown -R hdfs:hadoop /dfs &&
+          chmod g+s /dfs
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /dfs
+          name: dfs
+      containers:
+      - name: datanode
+        image: "gradiant/hdfs:2.7.7"
+        imagePullPolicy: "IfNotPresent"
+        command:
+           - "/bin/bash"
+           - "/tmp/hadoop-config/bootstrap.sh"
+           - "-d"
+           - "datanode"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2048Mi
+          requests:
+            cpu: 10m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 50075
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 50075
+          initialDelaySeconds: 10
+          timeoutSeconds: 2
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /tmp/hadoop-config
+        - name: dfs
+          mountPath: /dfs
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hive-hdfs-hadoop
+      - name: dfs
+        emptyDir: {}
+---
+# Source: hive/charts/hdfs/templates/hdfs-nn-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-hdfs-namenode
+  annotations:
+    checksum/config: 07c1e6c99cd717bdb2faadda085e1da47f2c43df771b1ab3dc601ca5fe8f8677
+  labels:
+    app.kubernetes.io/name: hdfs
+    app.kubernetes.io/component: namenode
+    helm.sh/chart: hdfs-0.1.10
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.7.7"
+    app.kubernetes.io/part-of: hdfs
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hdfs
+      app.kubernetes.io/component: namenode
+      app.kubernetes.io/instance: "hive"
+  serviceName: hive-hdfs-namenode
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hdfs
+        app.kubernetes.io/component: namenode
+        app.kubernetes.io/instance: "hive"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 5
+            podAffinityTerm:
+              topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: hdfs
+                  app.kubernetes.io/component: namenode
+                  helm.sh/chart: hdfs-0.1.10
+                  app.kubernetes.io/managed-by: "Helm"
+                  app.kubernetes.io/instance: "hive"
+                  app.kubernetes.io/version: "2.7.7"
+                  app.kubernetes.io/part-of: hdfs
+      initContainers:
+      - name: "chown"
+        image: "gradiant/hdfs:2.7.7"
+        imagePullPolicy: "IfNotPresent"
+        command:
+        - /bin/bash
+        - -c
+        - chown -R hdfs:hadoop /dfs &&
+          chmod g+s /dfs
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /dfs
+          name: dfs
+      containers:
+      - name: namenode
+        image: "gradiant/hdfs:2.7.7"
+        imagePullPolicy: "IfNotPresent"
+        command:
+        - "/bin/bash"
+        - "/tmp/hadoop-config/bootstrap.sh"
+        - "-d"
+        - "namenode"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2048Mi
+          requests:
+            cpu: 10m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 50070
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 50070
+          initialDelaySeconds: 10
+          timeoutSeconds: 2
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /tmp/hadoop-config
+        - name: dfs
+          mountPath: /dfs
+      - name: namenode-exporter
+        image: "marcelmay/hadoop-hdfs-fsimage-exporter:1.2"
+        command:
+        - /bin/sh
+        - -c
+        - java $JAVA_OPTS -jar /opt/fsimage-exporter/fsimage-exporter.jar 0.0.0.0 "5556" /exporter/config-exporter.yml
+        ports:
+        - containerPort: 5556
+        resources:
+                    null
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /tmp/hadoop-config
+        - name: config-exporter
+          mountPath: /exporter
+        - name: dfs
+          mountPath: /dfs
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hive-hdfs-hadoop
+      - name: config-exporter
+        configMap:
+          name: hive-hdfs-namenode-exporter
+      - name: dfs
+        emptyDir: {}
+---
+# Source: hive/charts/metastore/charts/postgresql/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-postgresql
+  labels:
+    app.kubernetes.io/name: postgresql
+    helm.sh/chart: postgresql-10.2.8
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: primary
+  annotations:
+  namespace: service-monitoring
+spec:
+  serviceName: hive-postgresql-headless
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/instance: hive
+      role: primary
+  template:
+    metadata:
+      name: hive-postgresql
+      labels:
+        app.kubernetes.io/name: postgresql
+        helm.sh/chart: postgresql-10.2.8
+        app.kubernetes.io/instance: hive
+        app.kubernetes.io/managed-by: Helm
+        role: primary
+        app.kubernetes.io/component: primary
+    spec:
+      affinity:
+        podAffinity:
+
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: postgresql
+                    app.kubernetes.io/instance: hive
+                    app.kubernetes.io/component: primary
+                namespaces:
+                  - "service-monitoring"
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: hive-postgresql
+          image: docker.io/bitnami/postgresql:11.10.0-debian-10-r83
+          imagePullPolicy: "IfNotPresent"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            runAsUser: 1001
+          env:
+            - name: BITNAMI_DEBUG
+              value: "false"
+            - name: POSTGRESQL_PORT_NUMBER
+              value: "5432"
+            - name: POSTGRESQL_VOLUME_DIR
+              value: "/bitnami/postgresql"
+            - name: PGDATA
+              value: "/bitnami/postgresql/data"
+            - name: POSTGRES_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hive-postgresql
+                  key: postgresql-postgres-password
+            - name: POSTGRES_USER
+              value: "hive"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hive-postgresql
+                  key: postgresql-password
+            - name: POSTGRES_DB
+              value: "metastore"
+            - name: POSTGRESQL_ENABLE_LDAP
+              value: "no"
+            - name: POSTGRESQL_ENABLE_TLS
+              value: "no"
+            - name: POSTGRESQL_LOG_HOSTNAME
+              value: "false"
+            - name: POSTGRESQL_LOG_CONNECTIONS
+              value: "false"
+            - name: POSTGRESQL_LOG_DISCONNECTIONS
+              value: "false"
+            - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+              value: "off"
+            - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+              value: "error"
+            - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+              value: "pgaudit"
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "hive" -d "dbname=metastore" -h 127.0.0.1 -p 5432
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - -e
+                - |
+                  exec pg_isready -U "hive" -d "dbname=metastore" -h 127.0.0.1 -p 5432
+                  [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          volumeMounts:
+            - name: custom-init-scripts
+              mountPath: /docker-entrypoint-initdb.d/
+            - name: dshm
+              mountPath: /dev/shm
+            - name: data
+              mountPath: /bitnami/postgresql
+              subPath:
+      volumes:
+        - name: custom-init-scripts
+          configMap:
+            name: hive-metastore-postgresql-init
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "8Gi"
+---
+# Source: hive/charts/metastore/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-metastore
+  labels:
+    app.kubernetes.io/name: metastore
+    app.kubernetes.io/component: metastore
+    helm.sh/chart: metastore-0.1.3
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.3.6"
+    app.kubernetes.io/part-of: metastore
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: metastore
+      app.kubernetes.io/component: metastore
+      app.kubernetes.io/instance: "hive"
+  serviceName: hive-metastore
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: metastore
+        app.kubernetes.io/component: metastore
+        app.kubernetes.io/instance: "hive"
+    spec:
+      containers:
+      - name: metastore
+        image: "bde2020/hive:2.3.2-postgresql-metastore"
+        imagePullPolicy: "IfNotPresent"
+        command:
+        - "/bin/sh"
+        - "-c"
+        - "/opt/hive/bin/hive --service metastore"
+        resources:
+          {}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: 16010
+        #   initialDelaySeconds: 5
+        #   timeoutSeconds: 2
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: 16010
+        #   initialDelaySeconds: 10
+        #   timeoutSeconds: 2
+        volumeMounts:
+        - name: hive-config
+          mountPath: /opt/hive/conf
+      volumes:
+      - name: hive-config
+        configMap:
+          name: hive-metastore
+---
+# Source: hive/templates/hive-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hive-server
+  labels:
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/component: server
+    helm.sh/chart: hive-0.1.6
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/instance: "hive"
+    app.kubernetes.io/version: "2.3.6"
+    app.kubernetes.io/part-of: hive
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hive
+      app.kubernetes.io/component: server
+      app.kubernetes.io/instance: "hive"
+  serviceName: hive-server
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hive
+        app.kubernetes.io/component: server
+        app.kubernetes.io/instance: "hive"
+    spec:
+      containers:
+      - name: server
+        image: "gradiant/hive:2.3.2-postgresql-metastore"
+        imagePullPolicy: "IfNotPresent"
+        command:
+          - /bin/bash
+          - /opt/hive/conf/startup.sh
+        resources:
+          {}
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 10002
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 10002
+          initialDelaySeconds: 10
+          timeoutSeconds: 2
+        volumeMounts:
+        - name: hive-config
+          mountPath: /opt/hive/conf
+        - name: hadoop-config
+          mountPath: /opt/hadoop/etc/hadoop
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hive-hdfs-hadoop
+      - name: hive-config
+        configMap:
+          name: hive

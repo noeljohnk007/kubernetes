@@ -1,0 +1,21 @@
+noel@Azure:~/hashicorp/charts$ helm install consul hashicorp/consul --values helm-consul-values.yaml -n hcm-datatransfer
+NAME: consul
+LAST DEPLOYED: Tue Oct 18 12:10:24 2022
+NAMESPACE: hcm-datatransfer
+STATUS: deployed
+REVISION: 1
+NOTES:
+Thank you for installing HashiCorp Consul!
+
+Your release is named consul.
+
+To learn more about the release, run:
+
+  $ helm status consul --namespace hcm-datatransfer
+  $ helm get all consul --namespace hcm-datatransfer
+
+Consul on Kubernetes Documentation:
+https://www.consul.io/docs/platform/k8s
+
+Consul on Kubernetes CLI Reference:
+https://www.consul.io/docs/k8s/k8s-cli

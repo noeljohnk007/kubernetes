@@ -1,0 +1,19 @@
+noel@Azure:~/hashicorp/charts$ helm install vault hashicorp/vault --values helm-vault-values.yaml -n hcm-datatransfer
+NAME: vault
+LAST DEPLOYED: Tue Oct 18 12:11:27 2022
+NAMESPACE: hcm-datatransfer
+STATUS: deployed
+REVISION: 1
+NOTES:
+Thank you for installing HashiCorp Vault!
+
+Now that you have deployed Vault, you should look over the docs on using
+Vault with Kubernetes available here:
+
+https://www.vaultproject.io/docs/
+
+
+Your release is named vault. To learn more about the release, try:
+
+  $ helm status vault
+  $ helm get manifest vault
