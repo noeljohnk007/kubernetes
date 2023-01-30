@@ -1,0 +1,31 @@
+{
+	"namespace": "com.dutyplan",
+	"name": "server_status",
+	"type": "record",
+	"fields": [{
+			"metadata": {},
+			"name": "server_name",
+			"nullable": true,
+			"type": "string"
+	}, {
+			"metadata": {},
+			"name": "server_url",
+			"nullable": true,
+			"type": "string"
+	}, {
+			"metadata": {},
+			"name": "date",
+			"nullable": true,
+			"type": "string"
+	}, {
+			"metadata": {},
+			"name": "status_code",
+			"nullable": true,
+			"type": "string"
+	}, {
+			"metadata": {},
+			"name": "status_reason",
+			"nullable": true,
+			"type": "string"
+	}]
+}
